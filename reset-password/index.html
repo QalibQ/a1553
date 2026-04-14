@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reset Password</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #ffffff;
+        --text: #111827;
+        --muted: #6b7280;
+        --border: #e5e7eb;
+        --shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+        --primary: #111827;
+        --danger: #b91c1c;
+        --success: #047857;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+          Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background: linear-gradient(180deg, #f9fafb, #ffffff);
+        color: var(--text);
+      }
+      .wrap {
+        max-width: 420px;
+        padding: 24px;
+        margin: 8vh auto 0;
+      }
+      .card {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+        padding: 20px;
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 6px;
+        letter-spacing: -0.01em;
+      }
+      p {
+        margin: 0 0 16px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        margin: 14px 0 6px;
+        color: var(--text);
+      }
+      input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        font-size: 14px;
+        outline: none;
+      }
+      input:focus {
+        border-color: #9ca3af;
+      }
+      button {
+        width: 100%;
+        margin-top: 16px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        border: 1px solid var(--primary);
+        background: var(--primary);
+        color: white;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+      .msg {
+        margin-top: 14px;
+        font-size: 13px;
+        line-height: 1.4;
+        border-radius: 10px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        display: none;
+        white-space: pre-wrap;
+      }
+      .msg.error {
+        display: block;
+        border-color: rgba(185, 28, 28, 0.3);
+        color: var(--danger);
+        background: rgba(185, 28, 28, 0.05);
+      }
+      .msg.success {
+        display: block;
+        border-color: rgba(4, 120, 87, 0.3);
+        color: var(--success);
+        background: rgba(4, 120, 87, 0.06);
+      }
+      .msg.info {
+        display: block;
+        color: var(--muted);
+        background: #f9fafb;
+      }
+      .fine {
+        margin-top: 16px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>Reset your password</h1>
+        <p>Choose a new password for your account.</p>
+
+        <div id="message" class="msg info">Loading…</div>
+
+        <form id="form" autocomplete="off">
+          <label for="password">New password</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            minlength="8"
+            required
+            placeholder="At least 8 characters"
+          />
+
+          <label for="confirm">Confirm new password</label>
+          <input
+            id="confirm"
+            name="confirm"
+            type="password"
+            minlength="8"
+            required
+            placeholder="Re-enter password"
+          />
+
+          <button id="submit" type="submit">Update password</button>
+        </form>
+
+        <div class="fine">
+          You can close this tab after success.
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+      // TODO: Fill these in (or inject via build-time replacement).
+      const SUPABASE_URL = "https://lsjfssthhtjhljwtwiwg.supabase.co";
+      const SUPABASE_ANON_KEY = "sb_publishable_6BlXgDZVz0IBIo5Oas89XQ_NLWOtLDo";
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      const $ = (id) => document.getElementById(id);
+      const message = $("message");
+      const form = $("form");
+      const submit = $("submit");
+      const password = $("password");
+      const confirm = $("confirm");
+
+      function setMessage(kind, text) {
+        message.className = "msg " + kind;
+        message.textContent = text;
+      }
+
+      function parseSupabaseTokensFromUrl() {
+        // Supabase commonly puts auth tokens in the URL fragment:
+        //   https://.../reset-password#access_token=...&refresh_token=...&type=recovery
+        // but we also support querystring just in case.
+        const hash = window.location.hash?.startsWith("#")
+          ? window.location.hash.slice(1)
+          : "";
+        const hashParams = new URLSearchParams(hash);
+        const queryParams = new URLSearchParams(window.location.search);
+
+        const get = (k) => hashParams.get(k) ?? queryParams.get(k);
+
+        return {
+          code: get("code"),
+          access_token: get("access_token"),
+          refresh_token: get("refresh_token"),
+          type: get("type"),
+          expires_in: get("expires_in"),
+          error: get("error"),
+          error_code: get("error_code"),
+          error_description: get("error_description"),
+        };
+      }
+
+      async function init() {
+        const t = parseSupabaseTokensFromUrl();
+
+        if (t.error || t.error_description) {
+          const desc = t.error_description
+            ? decodeURIComponent(t.error_description)
+            : t.error ?? "Unknown error";
+          setMessage("error", desc);
+          form.style.display = "none";
+          return;
+        }
+
+        if (t.type && t.type !== "recovery") {
+          setMessage(
+            "error",
+            `Unexpected link type (${t.type}). Please use a password recovery link.`
+          );
+          form.style.display = "none";
+          return;
+        }
+
+        // Supabase projects can be configured to use either:
+        // - Implicit flow: #access_token=...&refresh_token=...
+        // - PKCE flow:     ?code=...
+        // Support both.
+        if (t.code) {
+          setMessage("info", "Verifying link…");
+          const { error } = await supabase.auth.exchangeCodeForSession(t.code);
+          if (error) {
+            setMessage("error", `Could not verify link: ${error.message}`);
+            form.style.display = "none";
+            return;
+          }
+
+          // Remove the code from the URL (optional cleanup).
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete("code");
+          cleanUrl.searchParams.delete("type");
+          cleanUrl.searchParams.delete("expires_in");
+          cleanUrl.searchParams.delete("error");
+          cleanUrl.searchParams.delete("error_code");
+          cleanUrl.searchParams.delete("error_description");
+          window.history.replaceState({}, document.title, cleanUrl.toString());
+
+          setMessage("info", "Link verified. Enter a new password.");
+          return;
+        }
+
+        if (!t.access_token || !t.refresh_token) {
+          setMessage(
+            "error",
+            "Missing recovery tokens in the URL. Please open the reset link from your email (don’t open this page directly)."
+          );
+          form.style.display = "none";
+          return;
+        }
+
+        setMessage("info", "Link verified. Enter a new password.");
+
+        // Establish a session for this browser tab using the recovery tokens.
+        const { error } = await supabase.auth.setSession({
+          access_token: t.access_token,
+          refresh_token: t.refresh_token,
+        });
+        if (error) {
+          setMessage(
+            "error",
+            `Could not start recovery session: ${error.message}`
+          );
+          form.style.display = "none";
+          return;
+        }
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const p1 = password.value;
+        const p2 = confirm.value;
+
+        if (p1.length < 8) {
+          setMessage("error", "Password must be at least 8 characters.");
+          return;
+        }
+        if (p1 !== p2) {
+          setMessage("error", "Passwords do not match.");
+          return;
+        }
+
+        submit.disabled = true;
+        setMessage("info", "Updating password…");
+
+        const { error } = await supabase.auth.updateUser({ password: p1 });
+
+        submit.disabled = false;
+
+        if (error) {
+          setMessage("error", error.message);
+          return;
+        }
+
+        // Optional cleanup: end the session in this tab.
+        await supabase.auth.signOut();
+
+        setMessage("success", "Password updated successfully. You can now sign in with your new password.");
+        form.reset();
+        form.style.display = "none";
+      });
+
+      init().catch((err) => {
+        setMessage("error", String(err?.message ?? err));
+        form.style.display = "none";
+      });
+    </script>
+  </body>
+</html>
+

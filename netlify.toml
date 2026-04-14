@@ -1,0 +1,6 @@
+# Flutter output must exist at deploy time. Netlify’s build image does not include
+# Flutter by default, so either build locally / in CI, then deploy `build/web`.
+#
+# Publish directory:
+[build]
+  publish = "build/web"
